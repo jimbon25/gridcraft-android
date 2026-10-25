@@ -2,10 +2,12 @@
 import sys
 
 BRIDGE_SNIPPET = """  <script>
-    // AndroidBridge file save integration
+    // AndroidBridge file save & virtual keyboard integration
     (function() {
       function setupBridge() {
         if (!window.AndroidBridge) return;
+
+        // 1. Intercept file downloads via blob links
         const origClick = HTMLAnchorElement.prototype.click;
         HTMLAnchorElement.prototype.click = function() {
           if (this.download && this.href && this.href.startsWith("blob:")) {
@@ -25,7 +27,41 @@ BRIDGE_SNIPPET = """  <script>
           }
           return origClick.apply(this, arguments);
         };
+
+        // 2. Auto-forward eframe text input focus to Android soft keyboard
+        document.addEventListener('focusin', function(e) {
+          if (e.target && e.target.tagName === 'INPUT') {
+            if (window.AndroidBridge && window.AndroidBridge.showKeyboard) {
+              window.AndroidBridge.showKeyboard();
+            }
+          }
+        }, true);
+
+        document.addEventListener('focusout', function(e) {
+          if (e.target && e.target.tagName === 'INPUT') {
+            if (window.AndroidBridge && window.AndroidBridge.hideKeyboard) {
+              window.AndroidBridge.hideKeyboard();
+            }
+          }
+        }, true);
+
+        // 3. Double-tap on canvas to focus input and trigger soft keyboard
+        let lastTap = 0;
+        window.addEventListener('touchend', function(e) {
+          const now = Date.now();
+          if (now - lastTap < 350) {
+            const inp = document.querySelector('input');
+            if (inp) {
+              try { inp.focus({ preventScroll: true }); } catch (err) { inp.focus(); }
+            }
+            if (window.AndroidBridge && window.AndroidBridge.showKeyboard) {
+              window.AndroidBridge.showKeyboard();
+            }
+          }
+          lastTap = now;
+        }, { passive: true });
       }
+
       if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', setupBridge);
       } else {
@@ -41,7 +77,7 @@ def main():
     path = sys.argv[1]
     with open(path, "r", encoding="utf-8") as f:
         content = f.read()
-    if "AndroidBridge file save integration" in content:
+    if "AndroidBridge file save & virtual keyboard integration" in content:
         print("Already patched")
         return
     if "</head>" in content:

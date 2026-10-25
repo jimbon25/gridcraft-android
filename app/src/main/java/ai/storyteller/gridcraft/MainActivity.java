@@ -3,6 +3,7 @@ package ai.storyteller.gridcraft;
 import android.annotation.SuppressLint;
 import android.content.ActivityNotFoundException;
 import android.content.ContentValues;
+import android.content.Context;
 import android.content.Intent;
 import android.net.Uri;
 import android.os.Build;
@@ -13,6 +14,7 @@ import android.util.Base64;
 import android.util.Log;
 import android.view.KeyEvent;
 import android.view.View;
+import android.view.inputmethod.InputMethodManager;
 import android.webkit.ConsoleMessage;
 import android.webkit.JavascriptInterface;
 import android.webkit.ValueCallback;
@@ -29,7 +31,12 @@ import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.core.view.WindowCompat;
+import androidx.core.view.WindowInsetsCompat;
+import androidx.core.view.WindowInsetsControllerCompat;
 import androidx.webkit.WebViewAssetLoader;
+
+import com.google.android.material.floatingactionbutton.FloatingActionButton;
 
 import java.io.File;
 import java.io.FileOutputStream;
@@ -88,6 +95,12 @@ public class MainActivity extends AppCompatActivity {
 
         // Hardware acceleration for high-refresh-rate tablet screens
         webView.setLayerType(View.LAYER_TYPE_HARDWARE, null);
+        webView.setFocusable(true);
+        webView.setFocusableInTouchMode(true);
+        webView.requestFocus();
+
+        FloatingActionButton fabKeyboard = findViewById(R.id.fab_keyboard);
+        fabKeyboard.setOnClickListener(v -> toggleKeyboard());
 
         final WebViewAssetLoader assetLoader = new WebViewAssetLoader.Builder()
                 .setDomain("appassets.androidplatform.net")
@@ -152,6 +165,58 @@ public class MainActivity extends AppCompatActivity {
         webView.loadUrl("https://appassets.androidplatform.net/assets/gridcraft/index.html");
     }
 
+    public void toggleKeyboard() {
+        webView.requestFocus();
+        // Focus the hidden eframe text agent input if present
+        webView.evaluateJavascript(
+            "(function() {" +
+            "  var inp = document.querySelector('input');" +
+            "  if (inp) {" +
+            "    try { inp.focus({ preventScroll: true }); } catch (e) { inp.focus(); }" +
+            "    return true;" +
+            "  }" +
+            "  return false;" +
+            "})()",
+            value -> {
+                InputMethodManager imm = (InputMethodManager) getSystemService(Context.INPUT_METHOD_SERVICE);
+                if (imm != null) {
+                    imm.toggleSoftInput(InputMethodManager.SHOW_FORCED, 0);
+                }
+                WindowInsetsControllerCompat insets = WindowCompat.getInsetsController(getWindow(), webView);
+                if (insets != null) {
+                    insets.show(WindowInsetsCompat.Type.ime());
+                }
+            }
+        );
+    }
+
+    public void showKeyboard() {
+        runOnUiThread(() -> {
+            webView.requestFocus();
+            InputMethodManager imm = (InputMethodManager) getSystemService(Context.INPUT_METHOD_SERVICE);
+            if (imm != null) {
+                imm.showSoftInput(webView, InputMethodManager.SHOW_FORCED);
+            }
+            WindowInsetsControllerCompat insets = WindowCompat.getInsetsController(getWindow(), webView);
+            if (insets != null) {
+                insets.show(WindowInsetsCompat.Type.ime());
+            }
+        });
+    }
+
+    public void hideKeyboard() {
+        runOnUiThread(() -> {
+            InputMethodManager imm = (InputMethodManager) getSystemService(Context.INPUT_METHOD_SERVICE);
+            if (imm != null) {
+                imm.hideSoftInputFromWindow(webView.getWindowToken(), 0);
+            }
+            WindowInsetsControllerCompat insets = WindowCompat.getInsetsController(getWindow(), webView);
+            if (insets != null) {
+                insets.hide(WindowInsetsCompat.Type.ime());
+            }
+        });
+    }
+
     @Override
     public boolean onKeyDown(int keyCode, KeyEvent event) {
         if (keyCode == KeyEvent.KEYCODE_BACK) {
@@ -176,6 +241,16 @@ public class MainActivity extends AppCompatActivity {
                 Log.e(TAG, "Save failed", e);
                 runOnUiThread(() -> Toast.makeText(MainActivity.this, "Failed to save: " + e.getMessage(), Toast.LENGTH_LONG).show());
             }
+        }
+
+        @JavascriptInterface
+        public void showKeyboard() {
+            MainActivity.this.showKeyboard();
+        }
+
+        @JavascriptInterface
+        public void hideKeyboard() {
+            MainActivity.this.hideKeyboard();
         }
     }
 
