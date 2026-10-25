@@ -1,0 +1,56 @@
+plugins {
+    id 'com.android.application'
+}
+
+android {
+    namespace 'ai.storyteller.gridcraft'
+    compileSdk 34
+
+    defaultConfig {
+        applicationId "ai.storyteller.gridcraft"
+        minSdk 26
+        targetSdk 34
+        versionCode 1
+        versionName "0.11.1"
+
+        testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
+    }
+
+    signingConfigs {
+        release {
+            if (file('release.jks').exists()) {
+                storeFile file('release.jks')
+                storePassword 'gridcraft'
+                keyAlias 'gridcraft'
+                keyPassword 'gridcraft'
+            }
+        }
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            if (file('release.jks').exists()) {
+                signingConfig signingConfigs.release
+            } else {
+                signingConfig signingConfigs.debug
+            }
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+        }
+        debug {
+            if (file('release.jks').exists()) {
+                signingConfig signingConfigs.release
+            }
+        }
+    }
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+}
+
+dependencies {
+    implementation 'androidx.appcompat:appcompat:1.6.1'
+    implementation 'androidx.webkit:webkit:1.10.0'
+    implementation 'com.google.android.material:material:1.11.0'
+}

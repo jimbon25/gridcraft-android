@@ -1,0 +1,15 @@
+*.iml
+.gradle
+/local.properties
+/.idea
+.DS_Store
+/build
+/captures
+.externalNativeBuild
+.cxx
+local.properties
+app/release.jks
+*.apk
+*.zip
+app/src/main/assets/gridcraft
+release_apk/
