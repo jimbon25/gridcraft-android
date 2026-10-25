@@ -14,7 +14,7 @@ import android.util.Base64;
 import android.util.Log;
 import android.view.KeyEvent;
 import android.view.View;
-import android.view.inputmethod.InputMethodManager;
+import android.view.WindowManager;
 import android.webkit.ConsoleMessage;
 import android.webkit.JavascriptInterface;
 import android.webkit.ValueCallback;
@@ -31,12 +31,7 @@ import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
-import androidx.core.view.WindowCompat;
-import androidx.core.view.WindowInsetsCompat;
-import androidx.core.view.WindowInsetsControllerCompat;
 import androidx.webkit.WebViewAssetLoader;
-
-import com.google.android.material.floatingactionbutton.FloatingActionButton;
 
 import java.io.File;
 import java.io.FileOutputStream;
@@ -73,28 +68,18 @@ public class MainActivity extends AppCompatActivity {
                 }
             });
 
-    private boolean isKeyboardOpen = false;
-
     @Override
     @SuppressLint("SetJavaScriptEnabled")
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+
+        // Dedicated desktop & hardware keyboard dock mode: keep soft keyboard hidden
+        getWindow().setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_STATE_ALWAYS_HIDDEN);
+
         setContentView(R.layout.activity_main);
 
         webView = findViewById(R.id.webview);
         loadingSpinner = findViewById(R.id.loading_spinner);
-
-        // Track real-time keyboard insets visibility
-        androidx.core.view.ViewCompat.setOnApplyWindowInsetsListener(webView, (v, insets) -> {
-            boolean open = insets.isVisible(WindowInsetsCompat.Type.ime());
-            if (isKeyboardOpen != open) {
-                isKeyboardOpen = open;
-                if (!open) {
-                    webView.evaluateJavascript("if (window.__onKeyboardHidden) { window.__onKeyboardHidden(); }", null);
-                }
-            }
-            return insets;
-        });
 
         WebSettings settings = webView.getSettings();
         settings.setJavaScriptEnabled(true);
@@ -112,9 +97,6 @@ public class MainActivity extends AppCompatActivity {
         webView.setFocusable(true);
         webView.setFocusableInTouchMode(true);
         webView.requestFocus();
-
-        FloatingActionButton fabKeyboard = findViewById(R.id.fab_keyboard);
-        fabKeyboard.setOnClickListener(v -> toggleKeyboard());
 
         final WebViewAssetLoader assetLoader = new WebViewAssetLoader.Builder()
                 .setDomain("appassets.androidplatform.net")
@@ -179,55 +161,6 @@ public class MainActivity extends AppCompatActivity {
         webView.loadUrl("https://appassets.androidplatform.net/assets/gridcraft/index.html");
     }
 
-    public void toggleKeyboard() {
-        if (isKeyboardOpen) {
-            hideKeyboard();
-        } else {
-            showKeyboard();
-        }
-    }
-
-    public void showKeyboard() {
-        runOnUiThread(() -> {
-            webView.requestFocus();
-            webView.evaluateJavascript(
-                "(function() {" +
-                "  if (window.__showKeyboard) { window.__showKeyboard(); }" +
-                "})()",
-                null
-            );
-            WindowInsetsControllerCompat insets = WindowCompat.getInsetsController(getWindow(), webView);
-            if (insets != null) {
-                insets.show(WindowInsetsCompat.Type.ime());
-            } else {
-                InputMethodManager imm = (InputMethodManager) getSystemService(Context.INPUT_METHOD_SERVICE);
-                if (imm != null) {
-                    imm.showSoftInput(webView, InputMethodManager.SHOW_FORCED);
-                }
-            }
-        });
-    }
-
-    public void hideKeyboard() {
-        runOnUiThread(() -> {
-            webView.evaluateJavascript(
-                "(function() {" +
-                "  if (window.__hideKeyboard) { window.__hideKeyboard(); }" +
-                "})()",
-                null
-            );
-            WindowInsetsControllerCompat insets = WindowCompat.getInsetsController(getWindow(), webView);
-            if (insets != null) {
-                insets.hide(WindowInsetsCompat.Type.ime());
-            } else {
-                InputMethodManager imm = (InputMethodManager) getSystemService(Context.INPUT_METHOD_SERVICE);
-                if (imm != null) {
-                    imm.hideSoftInputFromWindow(webView.getWindowToken(), 0);
-                }
-            }
-        });
-    }
-
     @Override
     public boolean onKeyDown(int keyCode, KeyEvent event) {
         if (keyCode == KeyEvent.KEYCODE_BACK) {
@@ -252,16 +185,6 @@ public class MainActivity extends AppCompatActivity {
                 Log.e(TAG, "Save failed", e);
                 runOnUiThread(() -> Toast.makeText(MainActivity.this, "Failed to save: " + e.getMessage(), Toast.LENGTH_LONG).show());
             }
-        }
-
-        @JavascriptInterface
-        public void showKeyboard() {
-            MainActivity.this.showKeyboard();
-        }
-
-        @JavascriptInterface
-        public void hideKeyboard() {
-            MainActivity.this.hideKeyboard();
         }
     }
 

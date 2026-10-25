@@ -2,7 +2,7 @@
 import sys
 
 BRIDGE_SNIPPET = """  <script>
-    // AndroidBridge file save & virtual keyboard integration
+    // AndroidBridge file save & dock keyboard integration
     (function() {
       function setupBridge() {
         if (!window.AndroidBridge) return;
@@ -28,108 +28,13 @@ BRIDGE_SNIPPET = """  <script>
           return origClick.apply(this, arguments);
         };
 
-        function getCanvas() {
-          return document.querySelector('canvas') || document.getElementById('canvas');
-        }
-        function getInput() {
-          return document.querySelector('input');
-        }
-
-        // Lock inputmode to "none" so Chromium Android NEVER pops up the virtual keyboard on touch/scroll/selection
-        function lockInputMode() {
-          const inp = getInput();
-          if (inp && !window.__softKeyboardRequested) {
-            if (inp.getAttribute('inputmode') !== 'none') {
-              inp.setAttribute('inputmode', 'none');
-            }
+        // 2. Hardware / Dock keyboard mode: lock inputmode="none"
+        // This allows hardware keyboard dock to type with 0% soft-keyboard popup
+        document.addEventListener('focusin', function(e) {
+          if (e.target && e.target.tagName === 'INPUT') {
+            e.target.setAttribute('inputmode', 'none');
           }
-        }
-
-        const observer = new MutationObserver(function() {
-          lockInputMode();
-        });
-        observer.observe(document.documentElement || document.body, { childList: true, subtree: true });
-        setInterval(lockInputMode, 200);
-
-        window.__showKeyboard = function() {
-          window.__softKeyboardRequested = true;
-          const cvs = getCanvas();
-          if (cvs) {
-            try { cvs.focus({ preventScroll: true }); } catch (e) {}
-            // Send F2 keydown directly to canvas to enter in-cell editing mode
-            const ev = new KeyboardEvent('keydown', {
-              key: 'F2',
-              code: 'F2',
-              keyCode: 113,
-              which: 113,
-              bubbles: true,
-              cancelable: true
-            });
-            cvs.dispatchEvent(ev);
-          }
-          const inp = getInput();
-          if (inp) {
-            inp.setAttribute('inputmode', 'text');
-            try { inp.focus({ preventScroll: true }); } catch (e) { inp.focus(); }
-          }
-        };
-
-        window.__hideKeyboard = function() {
-          window.__softKeyboardRequested = false;
-          const inp = getInput();
-          if (inp) {
-            inp.setAttribute('inputmode', 'none');
-            try { inp.blur(); } catch (e) {}
-          }
-          const cvs = getCanvas();
-          if (cvs) {
-            try { cvs.focus({ preventScroll: true }); } catch (e) {}
-          }
-        };
-
-        window.__onKeyboardHidden = function() {
-          window.__softKeyboardRequested = false;
-          const inp = getInput();
-          if (inp) {
-            inp.setAttribute('inputmode', 'none');
-          }
-        };
-
-        // 3. Stationary double-tap only (ignores scroll and range-selection drag)
-        let touchStartX = 0;
-        let touchStartY = 0;
-        let touchMoved = false;
-        let lastTapTime = 0;
-
-        window.addEventListener('touchstart', function(e) {
-          if (e.touches.length === 1) {
-            touchStartX = e.touches[0].clientX;
-            touchStartY = e.touches[0].clientY;
-            touchMoved = false;
-          }
-        }, { passive: true });
-
-        window.addEventListener('touchmove', function(e) {
-          if (e.touches.length > 0) {
-            const dx = Math.abs(e.touches[0].clientX - touchStartX);
-            const dy = Math.abs(e.touches[0].clientY - touchStartY);
-            if (dx > 10 || dy > 10) {
-              touchMoved = true;
-            }
-          }
-        }, { passive: true });
-
-        window.addEventListener('touchend', function(e) {
-          if (touchMoved) return; // Ignore drag / scroll / selection
-          const now = Date.now();
-          if (now - lastTapTime < 350) {
-            if (window.__showKeyboard) window.__showKeyboard();
-            if (window.AndroidBridge && window.AndroidBridge.showKeyboard) {
-              window.AndroidBridge.showKeyboard();
-            }
-          }
-          lastTapTime = now;
-        }, { passive: true });
+        }, true);
       }
 
       if (document.readyState === 'loading') {
@@ -147,7 +52,7 @@ def main():
     path = sys.argv[1]
     with open(path, "r", encoding="utf-8") as f:
         content = f.read()
-    if "AndroidBridge file save & virtual keyboard integration" in content:
+    if "AndroidBridge file save & dock keyboard integration" in content:
         print("Already patched")
         return
     if "</head>" in content:
