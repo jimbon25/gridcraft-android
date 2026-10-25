@@ -86,7 +86,13 @@ public class MainActivity extends AppCompatActivity {
 
         // Track real-time keyboard insets visibility
         androidx.core.view.ViewCompat.setOnApplyWindowInsetsListener(webView, (v, insets) -> {
-            isKeyboardOpen = insets.isVisible(WindowInsetsCompat.Type.ime());
+            boolean open = insets.isVisible(WindowInsetsCompat.Type.ime());
+            if (isKeyboardOpen != open) {
+                isKeyboardOpen = open;
+                if (!open) {
+                    webView.evaluateJavascript("if (window.__onKeyboardHidden) { window.__onKeyboardHidden(); }", null);
+                }
+            }
             return insets;
         });
 
@@ -186,9 +192,7 @@ public class MainActivity extends AppCompatActivity {
             webView.requestFocus();
             webView.evaluateJavascript(
                 "(function() {" +
-                "  if (window.__prepareKeyboard) { window.__prepareKeyboard(); }" +
-                "  var inp = document.querySelector('input');" +
-                "  if (inp) { try { inp.focus({ preventScroll: true }); } catch (e) { inp.focus(); } }" +
+                "  if (window.__showKeyboard) { window.__showKeyboard(); }" +
                 "})()",
                 null
             );
@@ -206,6 +210,12 @@ public class MainActivity extends AppCompatActivity {
 
     public void hideKeyboard() {
         runOnUiThread(() -> {
+            webView.evaluateJavascript(
+                "(function() {" +
+                "  if (window.__hideKeyboard) { window.__hideKeyboard(); }" +
+                "})()",
+                null
+            );
             WindowInsetsControllerCompat insets = WindowCompat.getInsetsController(getWindow(), webView);
             if (insets != null) {
                 insets.hide(WindowInsetsCompat.Type.ime());

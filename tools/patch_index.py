@@ -28,12 +28,70 @@ BRIDGE_SNIPPET = """  <script>
           return origClick.apply(this, arguments);
         };
 
-        // 2. Prepare keyboard helper (F2 enters cell edit mode even on blank/new workbook cells)
-        window.__prepareKeyboard = function() {
-          window.dispatchEvent(new KeyboardEvent('keydown', { key: 'F2', code: 'F2', bubbles: true }));
-          const inp = document.querySelector('input');
+        function getCanvas() {
+          return document.querySelector('canvas') || document.getElementById('canvas');
+        }
+        function getInput() {
+          return document.querySelector('input');
+        }
+
+        // Lock inputmode to "none" so Chromium Android NEVER pops up the virtual keyboard on touch/scroll/selection
+        function lockInputMode() {
+          const inp = getInput();
+          if (inp && !window.__softKeyboardRequested) {
+            if (inp.getAttribute('inputmode') !== 'none') {
+              inp.setAttribute('inputmode', 'none');
+            }
+          }
+        }
+
+        const observer = new MutationObserver(function() {
+          lockInputMode();
+        });
+        observer.observe(document.documentElement || document.body, { childList: true, subtree: true });
+        setInterval(lockInputMode, 200);
+
+        window.__showKeyboard = function() {
+          window.__softKeyboardRequested = true;
+          const cvs = getCanvas();
+          if (cvs) {
+            try { cvs.focus({ preventScroll: true }); } catch (e) {}
+            // Send F2 keydown directly to canvas to enter in-cell editing mode
+            const ev = new KeyboardEvent('keydown', {
+              key: 'F2',
+              code: 'F2',
+              keyCode: 113,
+              which: 113,
+              bubbles: true,
+              cancelable: true
+            });
+            cvs.dispatchEvent(ev);
+          }
+          const inp = getInput();
           if (inp) {
-            try { inp.focus({ preventScroll: true }); } catch (err) { inp.focus(); }
+            inp.setAttribute('inputmode', 'text');
+            try { inp.focus({ preventScroll: true }); } catch (e) { inp.focus(); }
+          }
+        };
+
+        window.__hideKeyboard = function() {
+          window.__softKeyboardRequested = false;
+          const inp = getInput();
+          if (inp) {
+            inp.setAttribute('inputmode', 'none');
+            try { inp.blur(); } catch (e) {}
+          }
+          const cvs = getCanvas();
+          if (cvs) {
+            try { cvs.focus({ preventScroll: true }); } catch (e) {}
+          }
+        };
+
+        window.__onKeyboardHidden = function() {
+          window.__softKeyboardRequested = false;
+          const inp = getInput();
+          if (inp) {
+            inp.setAttribute('inputmode', 'none');
           }
         };
 
@@ -65,7 +123,7 @@ BRIDGE_SNIPPET = """  <script>
           if (touchMoved) return; // Ignore drag / scroll / selection
           const now = Date.now();
           if (now - lastTapTime < 350) {
-            if (window.__prepareKeyboard) window.__prepareKeyboard();
+            if (window.__showKeyboard) window.__showKeyboard();
             if (window.AndroidBridge && window.AndroidBridge.showKeyboard) {
               window.AndroidBridge.showKeyboard();
             }
