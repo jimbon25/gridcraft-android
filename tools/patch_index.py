@@ -28,37 +28,49 @@ BRIDGE_SNIPPET = """  <script>
           return origClick.apply(this, arguments);
         };
 
-        // 2. Auto-forward eframe text input focus to Android soft keyboard
-        document.addEventListener('focusin', function(e) {
-          if (e.target && e.target.tagName === 'INPUT') {
-            if (window.AndroidBridge && window.AndroidBridge.showKeyboard) {
-              window.AndroidBridge.showKeyboard();
+        // 2. Prepare keyboard helper (F2 enters cell edit mode even on blank/new workbook cells)
+        window.__prepareKeyboard = function() {
+          window.dispatchEvent(new KeyboardEvent('keydown', { key: 'F2', code: 'F2', bubbles: true }));
+          const inp = document.querySelector('input');
+          if (inp) {
+            try { inp.focus({ preventScroll: true }); } catch (err) { inp.focus(); }
+          }
+        };
+
+        // 3. Stationary double-tap only (ignores scroll and range-selection drag)
+        let touchStartX = 0;
+        let touchStartY = 0;
+        let touchMoved = false;
+        let lastTapTime = 0;
+
+        window.addEventListener('touchstart', function(e) {
+          if (e.touches.length === 1) {
+            touchStartX = e.touches[0].clientX;
+            touchStartY = e.touches[0].clientY;
+            touchMoved = false;
+          }
+        }, { passive: true });
+
+        window.addEventListener('touchmove', function(e) {
+          if (e.touches.length > 0) {
+            const dx = Math.abs(e.touches[0].clientX - touchStartX);
+            const dy = Math.abs(e.touches[0].clientY - touchStartY);
+            if (dx > 10 || dy > 10) {
+              touchMoved = true;
             }
           }
-        }, true);
+        }, { passive: true });
 
-        document.addEventListener('focusout', function(e) {
-          if (e.target && e.target.tagName === 'INPUT') {
-            if (window.AndroidBridge && window.AndroidBridge.hideKeyboard) {
-              window.AndroidBridge.hideKeyboard();
-            }
-          }
-        }, true);
-
-        // 3. Double-tap on canvas to focus input and trigger soft keyboard
-        let lastTap = 0;
         window.addEventListener('touchend', function(e) {
+          if (touchMoved) return; // Ignore drag / scroll / selection
           const now = Date.now();
-          if (now - lastTap < 350) {
-            const inp = document.querySelector('input');
-            if (inp) {
-              try { inp.focus({ preventScroll: true }); } catch (err) { inp.focus(); }
-            }
+          if (now - lastTapTime < 350) {
+            if (window.__prepareKeyboard) window.__prepareKeyboard();
             if (window.AndroidBridge && window.AndroidBridge.showKeyboard) {
               window.AndroidBridge.showKeyboard();
             }
           }
-          lastTap = now;
+          lastTapTime = now;
         }, { passive: true });
       }
 

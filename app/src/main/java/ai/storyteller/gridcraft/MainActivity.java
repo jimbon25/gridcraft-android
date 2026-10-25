@@ -73,6 +73,8 @@ public class MainActivity extends AppCompatActivity {
                 }
             });
 
+    private boolean isKeyboardOpen = false;
+
     @Override
     @SuppressLint("SetJavaScriptEnabled")
     protected void onCreate(Bundle savedInstanceState) {
@@ -81,6 +83,12 @@ public class MainActivity extends AppCompatActivity {
 
         webView = findViewById(R.id.webview);
         loadingSpinner = findViewById(R.id.loading_spinner);
+
+        // Track real-time keyboard insets visibility
+        androidx.core.view.ViewCompat.setOnApplyWindowInsetsListener(webView, (v, insets) -> {
+            isKeyboardOpen = insets.isVisible(WindowInsetsCompat.Type.ime());
+            return insets;
+        });
 
         WebSettings settings = webView.getSettings();
         settings.setJavaScriptEnabled(true);
@@ -166,53 +174,46 @@ public class MainActivity extends AppCompatActivity {
     }
 
     public void toggleKeyboard() {
-        webView.requestFocus();
-        // Focus the hidden eframe text agent input if present
-        webView.evaluateJavascript(
-            "(function() {" +
-            "  var inp = document.querySelector('input');" +
-            "  if (inp) {" +
-            "    try { inp.focus({ preventScroll: true }); } catch (e) { inp.focus(); }" +
-            "    return true;" +
-            "  }" +
-            "  return false;" +
-            "})()",
-            value -> {
-                InputMethodManager imm = (InputMethodManager) getSystemService(Context.INPUT_METHOD_SERVICE);
-                if (imm != null) {
-                    imm.toggleSoftInput(InputMethodManager.SHOW_FORCED, 0);
-                }
-                WindowInsetsControllerCompat insets = WindowCompat.getInsetsController(getWindow(), webView);
-                if (insets != null) {
-                    insets.show(WindowInsetsCompat.Type.ime());
-                }
-            }
-        );
+        if (isKeyboardOpen) {
+            hideKeyboard();
+        } else {
+            showKeyboard();
+        }
     }
 
     public void showKeyboard() {
         runOnUiThread(() -> {
             webView.requestFocus();
-            InputMethodManager imm = (InputMethodManager) getSystemService(Context.INPUT_METHOD_SERVICE);
-            if (imm != null) {
-                imm.showSoftInput(webView, InputMethodManager.SHOW_FORCED);
-            }
+            webView.evaluateJavascript(
+                "(function() {" +
+                "  if (window.__prepareKeyboard) { window.__prepareKeyboard(); }" +
+                "  var inp = document.querySelector('input');" +
+                "  if (inp) { try { inp.focus({ preventScroll: true }); } catch (e) { inp.focus(); } }" +
+                "})()",
+                null
+            );
             WindowInsetsControllerCompat insets = WindowCompat.getInsetsController(getWindow(), webView);
             if (insets != null) {
                 insets.show(WindowInsetsCompat.Type.ime());
+            } else {
+                InputMethodManager imm = (InputMethodManager) getSystemService(Context.INPUT_METHOD_SERVICE);
+                if (imm != null) {
+                    imm.showSoftInput(webView, InputMethodManager.SHOW_FORCED);
+                }
             }
         });
     }
 
     public void hideKeyboard() {
         runOnUiThread(() -> {
-            InputMethodManager imm = (InputMethodManager) getSystemService(Context.INPUT_METHOD_SERVICE);
-            if (imm != null) {
-                imm.hideSoftInputFromWindow(webView.getWindowToken(), 0);
-            }
             WindowInsetsControllerCompat insets = WindowCompat.getInsetsController(getWindow(), webView);
             if (insets != null) {
                 insets.hide(WindowInsetsCompat.Type.ime());
+            } else {
+                InputMethodManager imm = (InputMethodManager) getSystemService(Context.INPUT_METHOD_SERVICE);
+                if (imm != null) {
+                    imm.hideSoftInputFromWindow(webView.getWindowToken(), 0);
+                }
             }
         });
     }
